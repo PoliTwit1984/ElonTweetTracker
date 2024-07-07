@@ -4,14 +4,12 @@ import os
 import logging
 import json
 from datetime import datetime, timedelta, timezone
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 
 from utils import analyze_image_with_gpt4o, evaluate_social_responsibility, analyze_tweet_sentiment, advanced_analyze_tweet_content
 from db_utils import get_latest_tweet, insert_tweets_into_db
 
 dotenv.load_dotenv()
 BEARER_TOKEN = os.getenv("BEARER_TOKEN")
-AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,38 +17,18 @@ logging.basicConfig(level=logging.DEBUG,
 tweets_data = []  # This will store all processed tweet data
 
 
-def get_blob_service_client():
-    return BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+def load_from_json(filename='tweets_data.json'):
+    if os.path.exists(filename):
+        with open(filename, 'r') as file:
+            return json.load(file)
+    return []
 
 
-def load_from_blob(container_name='tweetdata', blob_name='tweets_data.json'):
-    blob_service_client = get_blob_service_client()
-    blob_client = blob_service_client.get_blob_client(
-        container=container_name, blob=blob_name)
-    try:
-        download_stream = blob_client.download_blob()
-        return json.loads(download_stream.readall())
-    except Exception as e:
-        logging.warning(f"Error loading data from blob: {str(e)}")
-        return []
-
-
-def save_to_blob(data, container_name='tweetdata', blob_name='tweets_data.json'):
-    logging.info(f"Attempting to save {len(data)} tweets to blob storage")
-    blob_service_client = get_blob_service_client()
-
-    # Ensure container exists
-    container_client = blob_service_client.get_container_client(container_name)
-    if not container_client.exists():
-        container_client.create_container()
-
-    blob_client = blob_service_client.get_blob_client(
-        container=container_name, blob=blob_name)
-    try:
-        blob_client.upload_blob(json.dumps(data, indent=4), overwrite=True)
-        logging.info(f"Data saved to blob storage")
-    except Exception as e:
-        logging.error(f"Error saving data to blob storage: {str(e)}")
+def save_to_json(data, filename='tweets_data.json'):
+    logging.info(f"Attempting to save {len(data)} tweets to {filename}")
+    with open(filename, 'w') as file:
+        json.dump(data, file, indent=4)
+    logging.info(f"Data saved to {filename}")
 
 
 def parse_tweets(tweets_response):
@@ -258,7 +236,7 @@ def referenced_tweet_id_lookup(tweet_id):
 
 def main():
     global tweets_data
-    tweets_data = load_from_blob()  # Load existing tweets from Blob Storage
+    tweets_data = load_from_json()  # Load existing tweets from JSON file
 
     tweet_id, created_at, text = get_latest_tweet()
 
@@ -300,8 +278,8 @@ def main():
         logging.info(f"Number of tweets processed: {len(tweets_data)}")
 
         if tweets_data:
-            # Save to Blob Storage after parsing all tweets
-            save_to_blob(tweets_data)
+            # Save to JSON file after parsing all tweets
+            save_to_json(tweets_data)
 
             # Insert new tweets into the database
             insert_tweets_into_db()
