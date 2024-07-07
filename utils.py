@@ -108,11 +108,22 @@ def analyze_tweet_sentiment(tweet_data, verbose=False):
 
         response = completion.choices[0].message.content
 
-        lines = response.split('\n')
-        sentiment_score = float(lines[0].split(':')[1].strip())
-        explanation = lines[1].split(':', 1)[1].strip()
-        key_factors = [factor.strip() for factor in lines[2].split(':', 1)[
-            1].strip().split(',')]
+        # More robust parsing of the response
+        sentiment_score = 0
+        explanation = "No explanation provided"
+        key_factors = []
+
+        for line in response.split('\n'):
+            if line.startswith("Sentiment rating:"):
+                try:
+                    sentiment_score = float(line.split(":")[1].strip())
+                except ValueError:
+                    sentiment_score = 0
+            elif line.startswith("Explanation:"):
+                explanation = line.split(":", 1)[1].strip()
+            elif line.startswith("Key factors:"):
+                key_factors = [factor.strip() for factor in line.split(":", 1)[
+                    1].strip().split(',')]
 
         result = {
             'tweet_id': tweet_data['id'],

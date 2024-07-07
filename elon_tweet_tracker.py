@@ -44,6 +44,7 @@ def parse_tweets(tweets_response):
     def process_media(media_keys, includes_media):
         media_info = []
         image_descriptions = []
+        image_urls = []
         for media_key in media_keys:
             media = next(
                 (m for m in includes_media if m['media_key'] == media_key), None)
@@ -51,6 +52,7 @@ def parse_tweets(tweets_response):
                 if media['type'] == 'photo':
                     image_url = media['url']
                     media_info.append(f"Image URL: {image_url}")
+                    image_urls.append(image_url)
                     try:
                         image_description = analyze_image_with_gpt4o(
                             image_url, verbose=True)
@@ -64,6 +66,7 @@ def parse_tweets(tweets_response):
                         'preview_image_url', 'URL not available')
                     media_info.append(f"Video Preview URL: {preview_url}")
                     if preview_url != 'URL not available':
+                        image_urls.append(preview_url)
                         try:
                             image_description = analyze_image_with_gpt4o(
                                 preview_url, verbose=True)
@@ -73,7 +76,7 @@ def parse_tweets(tweets_response):
                         except Exception as e:
                             media_info.append(
                                 f"Error analyzing video preview: {str(e)}")
-        return media_info, image_descriptions
+        return media_info, image_descriptions, image_urls
 
     includes_media = tweets_response.get('includes', {}).get('media', [])
 
@@ -92,16 +95,18 @@ def parse_tweets(tweets_response):
             "author_id": tweet['author_id'],
             "url": get_tweet_url(tweet['id']),
             "image_descriptions": [],
+            "image_urls": [],
             "referenced_tweets": []
         }
 
         if 'attachments' in tweet and 'media_keys' in tweet['attachments']:
             print("Media in this tweet:")
-            media_info, image_descriptions = process_media(
+            media_info, image_descriptions, image_urls = process_media(
                 tweet['attachments']['media_keys'], includes_media)
             for info in media_info:
                 print(info)
             tweet_data["image_descriptions"] = image_descriptions
+            tweet_data["image_urls"] = image_urls
 
         referenced_text = ""
         if 'referenced_tweets' in tweet:
@@ -112,7 +117,8 @@ def parse_tweets(tweets_response):
                     "type": ref['type'],
                     "id": ref['id'],
                     "text": ref_data["text"],
-                    "image_description": ref_data["image_description"]
+                    "image_description": ref_data["image_description"],
+                    "image_url": ref_data["image_url"]
                 })
                 referenced_text += ref_data["text"]
 
@@ -174,7 +180,7 @@ def referenced_tweet_id_lookup(tweet_id):
     if response.status_code != 200:
         print(
             f"Failed to fetch referenced tweet {tweet_id}: {response.status_code}")
-        return {"text": "", "image_description": ""}
+        return {"text": "", "image_description": "", "image_url": ""}
 
     ref_tweet_data = response.json()
     tweet = ref_tweet_data['data']
@@ -189,6 +195,7 @@ def referenced_tweet_id_lookup(tweet_id):
     print(f"Tweet URL: https://x.com/i/web/status/{tweet_id}")
 
     media_description = ""
+    image_url = ""
 
     if 'attachments' in tweet and 'media_keys' in tweet['attachments']:
         media_keys = tweet['attachments']['media_keys']
@@ -211,6 +218,7 @@ def referenced_tweet_id_lookup(tweet_id):
                         'preview_image_url', 'Not available')
                     print(f"Video Preview URL: {preview_url}")
                     if preview_url != 'Not available':
+                        image_url = preview_url
                         try:
                             media_description = analyze_image_with_gpt4o(
                                 preview_url, verbose=True)
@@ -223,7 +231,7 @@ def referenced_tweet_id_lookup(tweet_id):
     else:
         print("No attachments or media keys in this referenced tweet.")
 
-    return {"text": tweet['text'], "image_description": media_description}
+    return {"text": tweet['text'], "image_description": media_description, "image_url": image_url}
 
 
 def main():
@@ -240,15 +248,15 @@ def main():
     else:
         start_time = (datetime.now(timezone.utc) - timedelta(hours=24))
 
-    user_id = "44196397"
+    user_id = "44196397"  # TODO Create a command line argument for user_id
     url = f"https://api.twitter.com/2/users/{user_id}/tweets"
     params = {
         "tweet.fields": "attachments,created_at,text,author_id,referenced_tweets",
         "expansions": "attachments.media_keys,referenced_tweets.id",
         "media.fields": "type,url,preview_image_url",
         "user.fields": "username,name,profile_image_url",
-        "max_results": 100,
-        "start_time": start_time.isoformat()
+        "max_results": 10,
+        # "start_time": start_time.isoformat()
     }
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
