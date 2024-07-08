@@ -4,16 +4,18 @@ import logging
 import time
 from azure.cosmos import CosmosClient, exceptions
 from azure.storage.blob import BlobServiceClient
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Cosmos DB configuration
-endpoint = os.environ["COSMOS_DB_ENDPOINT"]
-key = os.environ["COSMOS_DB_KEY"]
-database_name = os.environ["COSMOS_DB_DATABASE_NAME"]
-container_name = os.environ["COSMOS_DB_CONTAINER_NAME"]
+endpoint = os.getenv("COSMOS_DB_ENDPOINT")
+key = os.getenv("COSMOS_DB_KEY")
+database_name = os.getenv("COSMOS_DB_DATABASE_NAME")
+container_name = os.getenv("COSMOS_DB_CONTAINER_NAME")
 
 # Azure Blob Storage configuration
-AZURE_STORAGE_CONNECTION_STRING = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 
 # Initialize the Cosmos client
 client = CosmosClient(endpoint, key)

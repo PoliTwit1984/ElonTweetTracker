@@ -5,6 +5,7 @@ import logging
 import json
 from datetime import datetime, timedelta, timezone
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+import azure.functions as func
 
 from utils import analyze_image_with_gpt4o, evaluate_social_responsibility, analyze_tweet_sentiment, advanced_analyze_tweet_content
 from db_utils import get_latest_tweet, insert_tweets_into_db

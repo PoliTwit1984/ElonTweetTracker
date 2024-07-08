@@ -1,5 +1,6 @@
 from collections import Counter
 import logging
+from dotenv import load_dotenv
 import os
 import openai
 import re
@@ -11,12 +12,12 @@ from nltk import pos_tag, ne_chunk
 from nltk.chunk import tree2conlltags
 
 # Load environment variables from .env file
-
+load_dotenv()
 
 # Retrieve OpenAI API key from environment variables
-openai_api_key = os.environ['OPENAI_API_KEY']
-logging.info(f"OPEN_AI_KEY configured: {'OPEN_AI_KEY' in os.environ}")
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
+# Set OpenAI API key
 client = openai.Client(api_key=openai_api_key)
 
 # Ensure the stopwords corpus is downloaded

@@ -1,0 +1,160 @@
+import os
+import json
+import streamlit as st
+from azure.storage.blob import BlobServiceClient
+from azure.cosmos import CosmosClient
+from dotenv import load_dotenv
+from datetime import datetime
+import pytz
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Azure Blob Storage and Cosmos DB configuration
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+COSMOS_DB_ENDPOINT = os.getenv("COSMOS_DB_ENDPOINT")
+COSMOS_DB_KEY = os.getenv("COSMOS_DB_KEY")
+COSMOS_DB_DATABASE_NAME = os.getenv("COSMOS_DB_DATABASE_NAME")
+COSMOS_DB_CONTAINER_NAME = os.getenv("COSMOS_DB_CONTAINER_NAME")
+
+# Initialize Azure Blob Service Client
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+container_client = blob_service_client.get_container_client("tweetdata")
+
+# Initialize Cosmos DB Client
+cosmos_client = CosmosClient(COSMOS_DB_ENDPOINT, COSMOS_DB_KEY)
+database = cosmos_client.get_database_client(COSMOS_DB_DATABASE_NAME)
+container = database.get_container_client(COSMOS_DB_CONTAINER_NAME)
+
+def load_blob_data():
+    blob_client = container_client.get_blob_client("tweets_data.json")
+    blob_data = blob_client.download_blob().readall()
+    return json.loads(blob_data)
+
+def query_cosmos_db(query):
+    return list(container.query_items(query=query, enable_cross_partition_query=True))
+
+def convert_to_cst(utc_time_str):
+    utc_time = datetime.fromisoformat(utc_time_str.replace("Z", "+00:00"))
+    cst = pytz.timezone('US/Central')
+    return utc_time.astimezone(cst).strftime('%Y-%m-%d %H:%M:%S %Z')
+
+# Streamlit app layout
+st.set_page_config(page_title="Elon Musk Tweet Analysis", layout="wide")
+
+# Neuromorphic CSS
+neuromorphic_css = """
+<style>
+    .neuromorphic {
+        background: #1e1e2f;
+        border-radius: 20px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 20px 20px 60px #1a1a2e, -20px -20px 60px #222238;
+        color: #fff;
+        font-family: 'Arial', sans-serif;
+    }
+    .neuromorphic h4, .neuromorphic p, .neuromorphic .details {
+        color: #8db9f5;
+    }
+    .neuromorphic a {
+        color: #1da1f2;
+        text-decoration: none;
+    }
+    .neuromorphic a:hover {
+        text-decoration: underline;
+    }
+    .tweet {
+        margin-bottom: 20px;
+    }
+    .analysis-box {
+        background: #2c2c3c;
+        border-radius: 10px;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    .analysis-box h5 {
+        margin: 0;
+        padding-bottom: 5px;
+        color: #ff4b5c;
+    }
+</style>
+"""
+
+st.markdown(neuromorphic_css, unsafe_allow_html=True)
+
+st.title("Elon Musk Tweet Analysis")
+
+# Load data from blob storage
+blob_data = load_blob_data()
+
+# Display a few tweets with neuromorphic design
+for tweet in blob_data[:5]:
+    st.markdown('<div class="neuromorphic tweet">', unsafe_allow_html=True)
+    st.markdown(f"<h4>Tweet ID: {tweet['id']}</h4>", unsafe_allow_html=True)
+    st.markdown(f"<p>Text: {tweet['text']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='details'>Created At: {convert_to_cst(tweet['created_at'])}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='details'>Author ID: {tweet['author_id']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='details'>URL: <a href='{tweet['url']}'>{tweet['url']}</a></p>", unsafe_allow_html=True)
+    
+    if tweet.get('image_descriptions') and tweet.get('image_urls'):
+        for image_url, image_description in zip(tweet['image_urls'], tweet['image_descriptions']):
+            if image_url:
+                st.image(image_url, caption=image_description)
+    
+    if 'referenced_tweets' in tweet:
+        for ref_tweet in tweet['referenced_tweets']:
+            st.markdown(f"<p><strong>Referenced Tweet ({ref_tweet['type']}):</strong></p>", unsafe_allow_html=True)
+            st.markdown(f"<p>ID: {ref_tweet['id']}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p>Text: {ref_tweet['text']}</p>", unsafe_allow_html=True)
+            if ref_tweet.get('image_url'):
+                st.image(ref_tweet['image_url'], caption=ref_tweet.get('image_description', ''))
+    
+    st.markdown("<p><strong>Keywords:</strong></p>", unsafe_allow_html=True)
+    for keyword in tweet.get('keywords', []):
+        st.markdown(f"<p> - {keyword[0]} (Frequency: {keyword[1]})</p>", unsafe_allow_html=True)
+    
+    st.markdown(f"<p><strong>Hashtags:</strong> {', '.join(tweet.get('hashtags', []))}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p><strong>Named Entities:</strong> {', '.join(tweet.get('named_entities', []))}</p>", unsafe_allow_html=True)
+
+    if 'sentiment' in tweet:
+        st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+        st.markdown("<h5>Sentiment Analysis</h5>", unsafe_allow_html=True)
+        st.markdown(f"<p>Score: {tweet['sentiment']['sentiment_score']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p>Reason: {tweet['sentiment'].get('explanation', 'N/A')}</p>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    if 'social_responsibility' in tweet:
+        st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+        st.markdown("<h5>Social Responsibility Analysis</h5>", unsafe_allow_html=True)
+        st.markdown(f"<p>Score: {tweet['social_responsibility'].get('rating', 'N/A')}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p>Reasoning: {tweet['social_responsibility'].get('explanation', 'N/A')}</p>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Query data from Cosmos DB
+st.header("Data from Cosmos DB")
+cosmos_query = "SELECT * FROM c"
+cosmos_data = query_cosmos_db(cosmos_query)
+st.write(cosmos_data)
+
+# Analysis and Visualization
+st.header("Sentiment Analysis")
+sentiments = [tweet["sentiment"]["sentiment_score"] for tweet in blob_data if "sentiment" in tweet]
+average_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
+st.write(f"Average Sentiment Score: {average_sentiment}")
+
+st.header("Social Responsibility Analysis")
+social_responsibilities = [tweet.get("social_responsibility", {}).get("rating", 0) for tweet in blob_data]
+average_responsibility = sum(social_responsibilities) / len(social_responsibilities) if social_responsibilities else 0
+st.write(f"Average Social Responsibility Score: {average_responsibility}")
+
+# Display data
+st.header("Tweet Data Table")
+st.write(blob_data)
+
+# Add any additional visualizations or analyses as needed
+
+if __name__ == "__main__":
+    st.run()
